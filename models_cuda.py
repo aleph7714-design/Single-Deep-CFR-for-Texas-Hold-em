@@ -3,9 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-# 自动检测设备
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 
 class SD_CFR_ValueNetwork(nn.Module):
     """
@@ -31,8 +28,7 @@ class SD_CFR_ValueNetwork(nn.Module):
 def get_strategy_from_value_net(value_net, state_tensor, legal_actions):
     value_net.eval()
     with torch.no_grad():
-        # 👇 核心适配：把 CPU 上的张量送进显卡进行推理，然后再拉回 CPU
-        state_tensor = state_tensor.to(device)
+
         advantages = value_net(state_tensor).squeeze(0).cpu().numpy()
 
     strategy = np.zeros(5, dtype=np.float32)
