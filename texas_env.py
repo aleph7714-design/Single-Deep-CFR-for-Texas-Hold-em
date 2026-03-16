@@ -141,7 +141,7 @@ class TexasEnv:
             + current_round.count("h")
             + current_round.count("p")
         )
-        if num_raises < 4:
+        if num_raises < 2:
             legal_actions.extend([2, 3, 4])
 
         return legal_actions
