@@ -96,51 +96,55 @@ def train_value_network(net, buffer, optimizer, iteration):
 
 
 if __name__ == "__main__":
-    print("Start training on device:", device)
+    print("🤖 启动 SD-CFR 训练 (CPU 采样 / GPU 训练 架构分离版)...")
 
     env = TexasEnv()
 
-    # 将两个大脑放入显存
+    # 【GPU 大脑】：专门用来进行大 Batch 的反向传播训练
     nets = {0: SD_CFR_ValueNetwork().to(device), 1: SD_CFR_ValueNetwork().to(device)}
+
+    # 【CPU 分身】：专门用来在博弈树中极速打牌采样
+    cpu_nets = {0: SD_CFR_ValueNetwork().cpu(), 1: SD_CFR_ValueNetwork().cpu()}
 
     optimizers = {
         0: optim.Adam(nets[0].parameters(), lr=0.001),
         1: optim.Adam(nets[1].parameters(), lr=0.001),
     }
 
-    # Buffer 留在系统内存中，防止爆显存
     buffers = {0: ReservoirBuffer(BUFFER_CAPACITY), 1: ReservoirBuffer(BUFFER_CAPACITY)}
-
     B_M = {0: [], 1: []}
     start_time = time.time()
 
     for t in range(1, ITERATIONS + 1):
-        # 1. 数据生成阶段
+
+        # 0. 核心操作：将 GPU 刚刚训练好的最新权重，同步给 CPU 分身
+        cpu_nets[0].load_state_dict(nets[0].state_dict())
+        cpu_nets[1].load_state_dict(nets[1].state_dict())
+
+        # 1. 数据生成阶段 (全部在 CPU 上极速运行)
         for traverser in [0, 1]:
-            # 加上无梯度上下文，彻底切断反向传播图，防止OOM！
             with torch.no_grad():
                 for _ in range(TRAVERSALS_PER_ITER):
                     history = env.reset()
-                    traverse(env, history, traverser, t, nets, buffers)
+                    # 👇 注意这里：传进去的是 cpu_nets，而不是 nets！
+                    traverse(env, history, traverser, t, cpu_nets, buffers)
 
-        # 2. 网络训练阶段
+        # 2. 网络训练阶段 (把 Buffer 里的数据送进 GPU 极速训练)
         loss_p0 = train_value_network(nets[0], buffers[0], optimizers[0], t)
         loss_p1 = train_value_network(nets[1], buffers[1], optimizers[1], t)
 
-        # 3. 将本轮训练好的大脑快照存入 B^M
-        # 把网络权重从显存拉回系统内存再保存，杜绝显存泄漏
+        # 3. 保存快照
         B_M[0].append({k: v.cpu() for k, v in nets[0].state_dict().items()})
         B_M[1].append({k: v.cpu() for k, v in nets[1].state_dict().items()})
 
-        if t % 5 == 0 or t == 1:
-            elapsed = time.time() - start_time
-            print(
-                f"Iter {t:3d}/{ITERATIONS} | "
-                f"P0 Loss: {loss_p0:.4f} | P1 Loss: {loss_p1:.4f} | "
-                f"Buffer: {len(buffers[0])} | Time: {elapsed:.1f}s"
-            )
+        elapsed = time.time() - start_time
+        print(
+            f"Iter {t:3d}/{ITERATIONS} | "
+            f"P0 Loss: {loss_p0:.4f} | P1 Loss: {loss_p1:.4f} | "
+            f"Buffer: {len(buffers[0])} | Time: {elapsed:.1f}s"
+        )
 
-    print("\n 训练完成！")
+    print("\n✅ 训练完成！")
     save_path = "texas_sdcfr_models_BM.pth"
     torch.save(B_M, save_path)
     print(f"德扑历史网络池已成功保存至 {save_path}。")
