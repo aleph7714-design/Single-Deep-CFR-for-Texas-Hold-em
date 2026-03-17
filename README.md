@@ -86,6 +86,8 @@ While the original paper used a restricted action space `{fold, call, raise}`, t
 
 [![arXiv](https://img.shields.io/badge/arXiv-1901.07621-b31b1b.svg)](https://arxiv.org/abs/1901.07621)
 
+![holdem](holdem.png)
+
 在工程实现上，SD-CFR 吸收了深度强化学习领域的成功经验，以解决传统博弈论算法在庞大状态空间下的维度爆炸问题：
 
 - **Monte Carlo 采样 (MC-CFR)**：传统 CFR 需要像穷举法一样遍历整棵博弈树 。本项目采用外部采样（Traverser探索所有合法动作，其他按照概率采样）抽取轨迹，降低单次计算的复杂度 。
