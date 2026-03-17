@@ -2,7 +2,7 @@
 
 This project implements a Texas Hold’em AI based on the **Single Deep Counterfactual Regret Minimization** algorithm. It is based on Eric Steinberger’s paper __Single Deep Counterfactual Regret Minimization_ and features an expanded action space.
 
-
+[![arXiv](https://img.shields.io/badge/arXiv-1901.07621-b31b1b.svg)](https://arxiv.org/abs/1901.07621)
 
 In terms of engineering, SD-CFR incorporates successful practices from **Deep Reinforcement Learning (DRL)** to solve the "curse of dimensionality" faced by traditional game theory algorithms in massive state spaces:
 
