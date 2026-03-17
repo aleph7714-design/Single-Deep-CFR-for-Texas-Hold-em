@@ -1,5 +1,91 @@
 # Single Deep CFR for Texas Hold’em
 
+# Single Deep CFR for Texas Hold’em
+
+This project implements a Texas Hold’em AI based on the **Single Deep Counterfactual Regret Minimization** algorithm. It is based on Eric Steinberger’s paper __Single Deep Counterfactual Regret Minimization_ and features an expanded action space.
+
+In terms of engineering, SD-CFR incorporates successful practices from **Deep Reinforcement Learning (DRL)** to solve the "curse of dimensionality" faced by traditional game theory algorithms in massive state spaces:
+
+- **Monte Carlo (MC-CFR)**: Traditional CFR requires traversing the entire game tree. This project uses **External Sampling** (the traverser explores all legal actions while others are sampled by probability) to extract trajectories, significantly reducing per-iteration computational complexity.
+
+- **Deep Learning**: Instead of using massive lookup tables (Tabular CFR), this implementation introduces **Deep Neural Networks (Value Networks)** to approximate advantages (i.e., normalized regrets).
+
+- **Experience Replay Buffer**: Instantaneous regret data from sampling is stored in a memory buffer $B^v$. Using a **Reservoir Sampling** mechanism for dynamic updates, the model breaks temporal correlation, allowing the neural network to perform stable **Batch Gradient Descent**.
+
+### CFR vs. RL: Key Differences
+
+1. **Objective: Maximization vs. Equilibrium.** RL aims to find an optimal strategy to maximize expected returns in a Markov Decision Process. In contrast, CFR addresses imperfect-information zero-sum games, aiming to minimize **exploitability** to approach a **Nash Equilibrium**, ensuring the AI remains unexploitable even against perfect opponents.
+
+2. **Fitting Metric: Q-Value vs. Counterfactual Regret.** While RL networks evaluate the future expected score of an action, CFR’s value network learns **Counterfactual Regrets**—the measure of how much more could have been earned if a different action had been chosen, assuming the opponent's strategy remained constant.
+
+3. **Final Strategy: Latest Network vs. Historical Average.** In RL, the latest trained network is typically the strongest. In CFR, the strategy $\sigma^t$ of a single iteration can oscillate wildly; the strategy that actually converges to Nash Equilibrium is the **weighted average** of all historical iterations.
+
+---
+
+## SD-CFR Core Technology and Principles
+
+Traditional Deep CFR algorithms utilize two separate neural networks: one to approximate regrets and an **Average Strategy Network** specifically to approximate the historical average strategy.
+
+The SD-CFR architecture proposed by Eric Steinberger:
+
+- **Discarding the Average Network**: SD-CFR removes the second network entirely. This not only saves significant computational overhead but also eliminates sampling and approximation errors introduced by the limited capacity of strategy buffers.
+
+- **Historical Network Pool & Trajectory Sampling**: To output an "average strategy" without an average network, SD-CFR saves the value network from each iteration into a **Historical Network Pool** $B^M$. When a game starts from the root node, the AI samples a network $\hat{D}^t$ from the pool with a probability proportional to its iteration index $t$ (Linear Weighting).
+
+- **Theoretical Proof**: The AI uses this single sampled network for the duration of the entire game. This **Trajectory Sampling** mechanism naturally satisfies the weighting constraints of Linear CFR and is mathematically proven: as long as the value network fits accurately, SD-CFR represents the true average strategy **without error**.
+
+---
+
+## Training Results (Early Prototype - 100 Iterations)
+
+While the original paper used a restricted action space `{fold, call, raise}`, this project expands it to `{fold, call, raise 0.2 pot, raise 0.5 pot, raise 1 pot}`. **Rules**: Small/Big blind is 10; maximum of 2 raises per street. After initial training (100 iterations, 200 samples per iteration), the AI is in early stages but already demonstrates distinct game logic.Here are some interesting cases.
+
+#### Case 1: The "Air" Bluff-Catcher
+
+- **Hole Cards**: P0 `Tc 2c` (Weak) vs P1 `Qc 9s` (Marginal/Mediocre)
+
+- **Process**: 
+  
+  **P0 Action Distribution**: `[0.217, 0.356, 0.29, 0.137, 0.]`. P0 chooses to **Check**.
+  
+  **Logic**: This shows strategic balancing. P0’s network "knows" P1 is likely bluffing and has learned that even with a poor hand, a brave re-raise can force a bluffing opponent to fold.
+  
+  **P1 Reaction**: Sensing P0’s pre-flop weakness, P1’s distribution shifts to `[0., 0.321, 0., 0., 0.679]`. It shows a **68% probability of a Full-Pot Raise**, attempting to "buy the pot" with sheer betting volume.
+  
+  **The Counter**: Despite facing massive pressure with only `T2` air, P0’s distribution is surprisingly aggressive: `[0.068, 0.021, 0.323, 0.3, 0.288]`. With a **fold frequency of only 6.8%**, P0 opts for a high-probability **Re-raise**. Facing this unexpected resistance, P1 immediately folds (100% probability).
+
+- **Logic**: This reflects the strategic equilibrium emerging from early-stage CFR self-play. P0’s network recognizes that P1 is highly likely to be bluffing. It has learned that even with a poor hand, a courageous re-raise can effectively force a bluffing opponent out of the pot.
+
+#### Case 2: The River Value Jam
+
+- **Hole Cards**: P0 `7c Ac` vs P1 `Qc 3d`
+
+- **Process**: Both players battle with A-high and Q-high until the pot reaches an astronomical **27,216** (reflecting early-stage confusion in high-stakes valuation).
+
+- **Highlight**: When the river drops the `Ad`, P0 hits Top Pair. While previous street distributions were scattered, the strategy instantly polarizes upon seeing the Ace, locking the distribution to **`[0., 0., 0., 0., 1.]`** (100% Full Pot Raise).
+
+- **Logic**: When the network perceives an absolute strength advantage, it abandons "trapping/checking" and moves directly to **maximum value extraction**.
+
+#### Case 3: Post-Flop Pressure
+
+- **Hole Cards**: P0 `Tc Ac` (A-high) vs P1 `8h Ks` (K-high)
+
+- **Process**:
+
+- **Pre-flop**: 
+  
+  P0 acts first and chooses to **Check-Trap** from an out-of-position disadvantage. P1’s network suggests `[0., 0.504, 0.35, 0.146, 0.]`, opting for a small "feel-out" bet. Holding the range advantage, P0 executes a **Check-Raise**, which P1 calls.
+  
+  **The Flop**: On an extremely dry board of `3d 2s 2c`, P0’s strategy `[0.587, 0., 0.413, 0., 0.]` leads to a small exploratory bet (**Raise 0.2P**).
+  
+  **The Turn/Reaction**: Despite holding only K-high, P1’s network outputs `[0.144, 0.435, 0.233, 0.187, 0.]`, decisively firing back with a **Half-Pot Re-raise**.
+  
+  **The Fold**: Facing the counter-attack, P0’s strategy shifts to `[1., 0., 0., 0., 0.]`—a **100% disciplined Fold**.
+
+- **Logic**: P1 learned to exploit dry board structures to counter-attack a pre-flop aggressor. P0 learned loss prevention: **"If I missed the board and face a heavy raise, fold."**
+
+
+
 本项目实现了一个基于单深度反事实遗憾最小化算法的德州扑克 AI，参照Eric Steinberger的论文 _Single Deep Counterfactual Regret Minimization_，增加了动作空间。
 
 [![arXiv](https://img.shields.io/badge/arXiv-1901.07621-b31b1b.svg)](https://arxiv.org/abs/1901.07621)
@@ -76,4 +162,4 @@ Eric Steinberger 提出的 SD-CFR 架构：
   
   P0 面对反击，动作变为 **`[1., 0., 0., 0., 0.]`**，100% 果断弃牌。
 
-- **AI 逻辑**：P1 学会了利用干燥牌面结构对翻前强势的p0反击，而 P0 学会了止损：**“没中牌，面对重注就跑”**，绝不用 A 高牌支付未知的反击。
+- **逻辑**：P1 学会了利用干燥牌面结构对翻前强势的p0反击，而 P0 学会了止损：**“没中牌，面对重注就跑”**，绝不用 A 高牌支付未知的反击。
