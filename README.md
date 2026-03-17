@@ -1,8 +1,8 @@
 # Single Deep CFR for Texas Hold’em
 
-# Single Deep CFR for Texas Hold’em
-
 This project implements a Texas Hold’em AI based on the **Single Deep Counterfactual Regret Minimization** algorithm. It is based on Eric Steinberger’s paper __Single Deep Counterfactual Regret Minimization_ and features an expanded action space.
+
+
 
 In terms of engineering, SD-CFR incorporates successful practices from **Deep Reinforcement Learning (DRL)** to solve the "curse of dimensionality" faced by traditional game theory algorithms in massive state spaces:
 
@@ -20,8 +20,6 @@ In terms of engineering, SD-CFR incorporates successful practices from **Deep Re
 
 3. **Final Strategy: Latest Network vs. Historical Average.** In RL, the latest trained network is typically the strongest. In CFR, the strategy $\sigma^t$ of a single iteration can oscillate wildly; the strategy that actually converges to Nash Equilibrium is the **weighted average** of all historical iterations.
 
----
-
 ## SD-CFR Core Technology and Principles
 
 Traditional Deep CFR algorithms utilize two separate neural networks: one to approximate regrets and an **Average Strategy Network** specifically to approximate the historical average strategy.
@@ -33,8 +31,6 @@ The SD-CFR architecture proposed by Eric Steinberger:
 - **Historical Network Pool & Trajectory Sampling**: To output an "average strategy" without an average network, SD-CFR saves the value network from each iteration into a **Historical Network Pool** $B^M$. When a game starts from the root node, the AI samples a network $\hat{D}^t$ from the pool with a probability proportional to its iteration index $t$ (Linear Weighting).
 
 - **Theoretical Proof**: The AI uses this single sampled network for the duration of the entire game. This **Trajectory Sampling** mechanism naturally satisfies the weighting constraints of Linear CFR and is mathematically proven: as long as the value network fits accurately, SD-CFR represents the true average strategy **without error**.
-
----
 
 ## Training Results (Early Prototype - 100 Iterations)
 
@@ -84,7 +80,7 @@ While the original paper used a restricted action space `{fold, call, raise}`, t
 
 - **Logic**: P1 learned to exploit dry board structures to counter-attack a pre-flop aggressor. P0 learned loss prevention: **"If I missed the board and face a heavy raise, fold."**
 
-
+---
 
 本项目实现了一个基于单深度反事实遗憾最小化算法的德州扑克 AI，参照Eric Steinberger的论文 _Single Deep Counterfactual Regret Minimization_，增加了动作空间。
 
@@ -92,11 +88,11 @@ While the original paper used a restricted action space `{fold, call, raise}`, t
 
 在工程实现上，SD-CFR 吸收了深度强化学习领域的成功经验，以解决传统博弈论算法在庞大状态空间下的维度爆炸问题：
 
-- **Monte Carlo(MC-CFR)**：传统 CFR 需要像穷举法一样遍历整棵博弈树 。本项目采用外部采样（Traverser探索所有合法动作，其他按照概率采样）抽取轨迹，降低单次计算的复杂度 。
+- **Monte Carlo 采样 (MC-CFR)**：传统 CFR 需要像穷举法一样遍历整棵博弈树 。本项目采用外部采样（Traverser探索所有合法动作，其他按照概率采样）抽取轨迹，降低单次计算的复杂度 。
 
-- **深度学习**：抛弃了传统 CFR 庞大的查表法，引入了深度神经网络（价值网络）来近似拟合优势值（也就是归一化的遗憾值regret）。
+- **深度学习 (Deep Learning)**：抛弃了传统 CFR 庞大的查表法，引入了深度神经网络（价值网络）来近似拟合优势值（也就是归一化的遗憾值regret）。
 
-- **经验回放池**：将采样得到的瞬时遗憾值数据存入一个内存缓冲区 $B^v$，并使用蓄水池采样 (Reservoir Sampling) 机制进行动态更新 。这打破了数据的时间相关性，使神经网络能进行稳定的 Batch 梯度下降。
+- **经验回放池 (Experience Replay)**：将采样得到的瞬时遗憾值数据存入一个内存缓冲区 $B^v$，并使用蓄水池采样 (Reservoir Sampling) 机制进行动态更新 。这打破了数据的时间相关性，使神经网络能进行稳定的 Batch 梯度下降。
 
 **CFR 与 RL 的差异**
 
