@@ -101,7 +101,7 @@ if __name__ == "__main__":
 
     env = TexasEnv()
 
-    # 观战 3 局
-    for i in range(3):
+    # 观战 n 局
+    for i in range(15):
         print(f"\n================ 第 {i+1} 局 ================")
         play_one_hand(env, B_M[0], B_M[1])
